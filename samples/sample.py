@@ -1,12 +1,3 @@
-# Spacy train tools
-
-## Install
-- https://pypi.org/project/spacy-train-tools
-- Run `pip install spacy-train-tools` or `pip3 install spacy-train-tools` to install this library
-
-## Usage
-
-```python
 from src.spacy_train_tools.train import train_spacy_model
 
 if __name__ == "__main__":
@@ -17,5 +8,3 @@ if __name__ == "__main__":
         dev_file='./data/dev.jsonl',
         output_folder='./models'
     )
-
-```

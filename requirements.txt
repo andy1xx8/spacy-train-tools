@@ -1,0 +1,7 @@
+flask
+waitress
+jinja2
+py_profiler
+beautifultable
+spacy
+unidecode
