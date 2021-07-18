@@ -1,5 +1,8 @@
 # Spacy train tools
 
+- python3 -m pip install --upgrade build
+- python3 -m pip install --upgrade twine
+
 ## Install
 - https://pypi.org/project/spacy-train-tools
 - Run `pip install spacy-train-tools` or `pip3 install spacy-train-tools` to install this library

@@ -1,12 +1,14 @@
 import json
 import logging
+import os.path
 import re
+import shutil
+import tempfile
 
 import spacy
 import unidecode
 from spacy.tokens import DocBin
 from spacy.tokens.doc import Doc
-
 
 def remove_all_punc(text: str, replacement: str = '') -> str:
     punc = '''!()[]{};:'",<>.?@#$%^&*_~'''
@@ -22,28 +24,34 @@ def load_cat_labels(from_file: str, cat_key: str = 'cats') -> list:
     with open(from_file, 'r', encoding='utf-8') as reader:
         for line in reader:
             text_json = json.loads(line)
-            labels = text_json[cat_key]
-            if labels is list:
+            labels = text_json[cat_key] if cat_key in text_json else None
+            if labels is not None and labels is list:
                 for label in labels:
                     if label not in all_labels:
                         all_labels.append(label)
-            else:
+            elif labels is not None:
                 if labels not in all_labels:
                     all_labels.append(labels)
+            else:
+                pass
 
     return all_labels
 
 
 def normalize_text(
         text: str,
-        case_insensitive: bool,
-        remove_accent: bool) -> list:
+        remove_punc: bool = False,
+        case_insensitive: bool = False,
+        remove_accent: bool = False) -> list:
     def normalize_classify_text(name: str) -> str:
-        cleaned_text = remove_all_punc(name, " ")
-        cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+        if remove_punc:
+            cleaned_text = remove_all_punc(name, " ")
+            cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+        else:
+            cleaned_text = name
         return cleaned_text
 
-    s = text.strip()
+    s = text.strip() if remove_punc else text
     if remove_accent:
         s = unidecode.unidecode(s)
 
@@ -93,10 +101,15 @@ def create_spacy_doc(
             text_json = json.loads(line)
             text = str(text_json['data'])
 
-            cats = text_json[cat_key]
-            entities = text_json[entity_key]
+            cats = text_json[cat_key] if cat_key in text_json else None
+            entities = text_json[entity_key] if entity_key in text_json else None
 
-            text_list = normalize_text(text, case_insensitive, remove_accent)
+            text_list = normalize_text(
+                text,
+                remove_punc=entities is None,
+                case_insensitive=case_insensitive,
+                remove_accent=remove_accent
+            )
 
             for cleaned_text in text_list:
                 doc: Doc = nlp.make_doc(cleaned_text)
@@ -127,6 +140,18 @@ def create_spacy_doc(
     return train_doc_bin
 
 
+def print_tokens(doc: Doc):
+    tokens = [
+        token
+        for token in doc
+    ]
+
+    logging.info(doc.text)
+    logging.info('-------------------------------------')
+    logging.info(f'Token: {tokens}')
+    logging.info('=====================================')
+
+
 def apply_cats(doc: Doc, cats, all_cat_set: list = None):
     if all_cat_set is None:
         all_cat_set = []
@@ -154,4 +179,6 @@ def apply_entities(doc: Doc, entities) -> (int, int):
             entity_counter += 1
     doc.ents = char_spans
 
+    if skip_entity_counter > 0:
+        print_tokens(doc)
     return entity_counter, skip_entity_counter
