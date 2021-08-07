@@ -4,6 +4,7 @@ import os.path
 import re
 import shutil
 import tempfile
+from typing import Tuple
 
 import spacy
 import unidecode
@@ -100,34 +101,37 @@ def create_spacy_doc(
         for line in reader:
             text_json = json.loads(line)
             text = str(text_json['data'])
+            try:
+                cats = text_json[cat_key] if cat_key in text_json else None
+                entities = text_json[entity_key] if entity_key in text_json else None
 
-            cats = text_json[cat_key] if cat_key in text_json else None
-            entities = text_json[entity_key] if entity_key in text_json else None
+                text_list = normalize_text(
+                    text,
+                    remove_punc=entities is None,
+                    case_insensitive=case_insensitive,
+                    remove_accent=remove_accent
+                )
 
-            text_list = normalize_text(
-                text,
-                remove_punc=entities is None,
-                case_insensitive=case_insensitive,
-                remove_accent=remove_accent
-            )
+                for cleaned_text in text_list:
+                    doc: Doc = nlp.make_doc(cleaned_text)
 
-            for cleaned_text in text_list:
-                doc: Doc = nlp.make_doc(cleaned_text)
+                    if cats is not None:
+                        apply_cats(doc, cats, all_cat_set if add_all_labels else None)
+                    if entities is not None:
+                        num_entities, skip_entities = apply_entities(doc, entities)
+                        entity_counter += num_entities
+                        skip_entity_counter += skip_entities
 
-                if cats is not None:
-                    apply_cats(doc, cats, all_cat_set if add_all_labels else None)
-                if entities is not None:
-                    num_entities, skip_entities = apply_entities(doc, entities)
-                    entity_counter += num_entities
-                    skip_entity_counter += skip_entities
+                    train_doc_bin.add(doc)
+                    doc_counter += 1
 
-                train_doc_bin.add(doc)
-                doc_counter += 1
+                line_counter += 1
 
-            line_counter += 1
-
-            if dataset_size is not None and line_counter >= dataset_size:
-                break
+                if dataset_size is not None and line_counter >= dataset_size:
+                    break
+            except Exception as ex:
+                logging.error(f'{text}')
+                raise ex
 
     logging.info(f'''
     Created binary doc from: {from_file}
@@ -148,7 +152,7 @@ def print_tokens(doc: Doc):
 
     logging.info(doc.text)
     logging.info('-------------------------------------')
-    logging.info(f'Token: {tokens}')
+    logging.info(f'Token: {json.dumps(tokens, ensure_ascii=False)}')
     logging.info('=====================================')
 
 
@@ -164,7 +168,7 @@ def apply_cats(doc: Doc, cats, all_cat_set: list = None):
         doc.cats[cats] = 1
 
 
-def apply_entities(doc: Doc, entities) -> (int, int):
+def apply_entities(doc: Doc, entities) -> Tuple[int,int]:
     entity_counter = 0
     skip_entity_counter = 0
     char_spans = []
